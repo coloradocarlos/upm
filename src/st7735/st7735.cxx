@@ -32,7 +32,7 @@
 
 using namespace upm;
 
-ST7735::ST7735 (uint8_t csLCD, uint8_t cSD, uint8_t rs, uint8_t rst) : GFX (160, 128, m_map, font) {
+ST7735::ST7735 (uint8_t csLCD, uint8_t cSD, uint8_t rs, uint8_t rst) : GFX (ST7735_TFTHEIGHT, ST7735_TFTWIDTH, m_map, font) {
     mraa_init();
 
     m_csLCD = csLCD;
@@ -72,8 +72,7 @@ void
 ST7735::initModule () {
     mraa_result_t error = MRAA_SUCCESS;
 
-    m_height = 160;
-    m_width  = 128;
+    // m_height and m_width initialized in configModule() call to setRotation()
 
     m_csLCDPinCtx = mraa_gpio_init (m_csLCD);
     if (m_csLCDPinCtx == NULL) {
@@ -120,7 +119,11 @@ ST7735::initModule () {
     }
 
     m_spi = mraa_spi_init (0);
-    error = mraa_spi_frequency(m_spi, 15 * 1000000);
+    if (mraa_get_platform_type() == MRAA_INTEL_EDISON_FAB_C) {
+        error = mraa_spi_frequency(m_spi, 25 * 1000000);
+    } else {
+        error = mraa_spi_frequency(m_spi, 15 * 1000000);
+    }
     if (error != MRAA_SUCCESS) {
         mraa_result_print (error);
     }
@@ -204,9 +207,20 @@ void
 ST7735::refresh () {
     rsHIGH ();
 
-    int fragmentSize = m_height * m_width * 2 / 20;
-    for (int fragment = 0; fragment < 20; fragment++) {
-        mraa_spi_write_buf(m_spi, &m_map[fragment * fragmentSize], fragmentSize);
+    // Work around for ioctl() brain freeze on Edison breakout board
+    int fragmentDivisor;
+    if (mraa_get_platform_type() == MRAA_INTEL_EDISON_FAB_C) {
+        fragmentDivisor = 1280;
+    } else {
+        fragmentDivisor = 20;
+    }
+
+    mraa_result_t res;
+    int fragmentSize = m_height * m_width * 2 / fragmentDivisor;
+    for (int fragment = 0; fragment < fragmentDivisor; fragment++) {
+        // uint8_t* x = mraa_spi_write_buf(m_spi, &m_map[fragment * fragmentSize], fragmentSize);
+        // free(x);
+        res = mraa_spi_transfer_buf(m_spi, &m_map[fragment * fragmentSize], NULL, fragmentSize);
     }
 }
 
@@ -227,8 +241,7 @@ ST7735::configModule() {
     executeCMDList (Rcmd2red);
     executeCMDList (Rcmd3);
 
-    write (ST7735_MADCTL);
-    data (0xC0);
+    setRotation(3); // also sets m_width and m_height
 
     setAddrWindow (0, 0, m_width - 1, m_height - 1);
 
@@ -316,4 +329,49 @@ ST7735::rsLOW () {
     }
 
     return error;
+}
+
+// https://github.com/adafruit/Adafruit-ST7735-Library/blob/master/Adafruit_ST7735.cpp
+#define MADCTL_MY  0x80
+#define MADCTL_MX  0x40
+#define MADCTL_MV  0x20
+#define MADCTL_ML  0x10
+#define MADCTL_RGB 0x00
+#define MADCTL_BGR 0x08
+#define MADCTL_MH  0x04
+
+void
+ST7735::setRotation(uint8_t r) {
+    uint8_t rotation = r & 3; // 0 to 3 only
+    uint8_t param; // MY MX MV ML RGB MH x x
+
+    switch (rotation) {
+        case 0:
+            // 0 deg
+            param = MADCTL_MX | MADCTL_MY | MADCTL_RGB;
+            m_height = ST7735_TFTHEIGHT;
+            m_width  = ST7735_TFTWIDTH;
+            break;
+        case 1:
+            // 90 deg
+            param = MADCTL_MY | MADCTL_MV | MADCTL_RGB;
+            m_height = ST7735_TFTWIDTH;
+            m_width  = ST7735_TFTHEIGHT;
+            break;
+        case 2:
+            // 180 deg
+            param = MADCTL_RGB;
+            m_height = ST7735_TFTHEIGHT;
+            m_width  = ST7735_TFTWIDTH;
+            break;
+        case 3:
+            // 270 deg
+            param = MADCTL_MX | MADCTL_MV | MADCTL_RGB;
+            m_height = ST7735_TFTWIDTH;
+            m_width  = ST7735_TFTHEIGHT;
+            break;
+    }
+
+    write (ST7735_MADCTL);
+    data(param);
 }

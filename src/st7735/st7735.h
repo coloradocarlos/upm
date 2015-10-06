@@ -24,13 +24,12 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#pragma once
 
 #include <string>
 #include <mraa/aio.h>
 #include <mraa/gpio.h>
 #include <mraa/spi.h>
-#include <gfx.h>
+#include "gfx.h"
 
 #define INITR_GREENTAB      0x0
 #define INITR_REDTAB        0x1
@@ -625,7 +624,7 @@ class ST7735 : public GFX {
          */
         mraa_result_t rsLOW ();
 
-        uint8_t m_map[160 * 128 * 2]; /**< Screens buffer */
+        uint8_t m_map[ST7735_TFTHEIGHT * ST7735_TFTWIDTH * 2]; /**< Screens buffer */
     private:
         mraa_spi_context      m_spi;
         uint8_t              m_csLCD;
@@ -641,6 +640,9 @@ class ST7735 : public GFX {
         uint8_t              m_spiBuffer[32];
 
         std::string          m_name;
+
+        // 0 = 0, 1 = 90, 2 = 180, 3 = 270
+        void setRotation(uint8_t r);
 };
 
 }
