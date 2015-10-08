@@ -200,6 +200,15 @@ class GFX {
          */
         void setTextWrap (uint8_t wrap);
 
+        /**
+         * Reads a Windows Bitmap (BMP) and draws it to the display
+         *
+         * @param fileName Axis on the horizontal scale
+         * @param x Start position x
+         * @param y Start position y
+         */
+        void drawBitmap(const char* fileName, uint8_t x, uint8_t y);
+
         int m_height; /**< Screen height */
         int m_width; /**< Screen width */
         int m_textSize; /**< Printed text size */
@@ -214,5 +223,12 @@ class GFX {
     protected:
         const int16_t   WIDTH, HEIGHT;
         const unsigned char * m_font;
+
+    private:
+        // bitmap helper functions
+        uint16_t read16(std::ifstream &f);
+        uint32_t read32(std::ifstream &f);
+        uint16_t toColor565(uint8_t r, uint8_t g, uint8_t b);
+
     };
 }

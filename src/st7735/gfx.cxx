@@ -23,6 +23,7 @@
  */
 
 #include <iostream>
+#include <fstream>
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -228,4 +229,160 @@ GFX::print (std::string msg) {
             }
         }
     }
+}
+
+// See https://github.com/adafruit/Adafruit-ST7735-Library/blob/master/examples/spitftbitmap/spitftbitmap.ino
+
+// This function opens a Windows Bitmap (BMP) file and
+// displays it at the given coordinates.  It's sped up
+// by reading many pixels worth of data at a time
+// (rather than pixel by pixel).  Increasing the buffer
+// size takes more of the Arduino's precious RAM but
+// makes loading a little faster.  20 pixels seems a
+// good balance.
+
+#define BUFFPIXEL 20
+
+void GFX::drawBitmap(const char* fileName, uint8_t x, uint8_t y) {
+    uint32_t bmpImageoffset;        // Start of image data in file
+    int      bmpWidth, bmpHeight;   // W+H in pixels
+    uint8_t  bmpDepth;              // Bit depth (currently must be 24)
+    uint32_t rowSize;               // Not always = bmpWidth; may have padding
+    bool     flip    = true;        // BMP is stored bottom-to-top
+    int      w, h, row, col;
+    uint8_t  r, g, b;
+    uint32_t pos = 0; //, startTime = millis();
+    uint8_t  sdbuffer[3*BUFFPIXEL]; // pixel buffer (R+G+B per pixel)
+    uint8_t  buffidx = sizeof(sdbuffer); // Current position in sdbuffer
+
+    // Open BMP file
+    std::ifstream bmpFile(fileName, std::ios::binary);
+
+    // Check really open
+    if (!bmpFile.is_open()) {
+        fprintf (stderr, "%s: BMP file not open", __FUNCTION__);
+        return;
+    }
+
+    // BMP signature
+    if (read16(bmpFile) != 0x4D42) {
+        fprintf (stderr, "%s: File missing BMP signature", __FUNCTION__);
+        bmpFile.close();
+        return;
+    }
+
+    // Ignore ile size
+    read32(bmpFile);
+
+    // Ignore creator bytes
+    read32(bmpFile);
+
+    // Start of image data
+    bmpImageoffset = read32(bmpFile);
+
+    // Ingore DIB header
+    read32(bmpFile);
+
+    // Width / height
+    bmpWidth  = read32(bmpFile);
+    bmpHeight = read32(bmpFile);
+
+    // # planes -- must be '1'
+    if (read16(bmpFile) != 1) {
+        fprintf (stderr, "%s: Number of planes must be 1", __FUNCTION__);
+        bmpFile.close();
+        return;
+    }
+
+    // bits per pixel
+    bmpDepth = read16(bmpFile);
+    if (bmpDepth != 24) {
+        fprintf (stderr, "%s: Bit depth must be 24", __FUNCTION__);
+        bmpFile.close();
+        return;
+    }
+
+    // 0 = uncompressed
+    if (read32(bmpFile) != 0) {
+        fprintf (stderr, "%s: Bitmap not uncompressed", __FUNCTION__);
+        bmpFile.close();
+        return;
+    }
+
+    // BMP rows are padded (if needed) to 4-byte boundary
+    rowSize = (bmpWidth * 3 + 3) & ~3;
+
+    // If bmpHeight is negative, image is in top-down order.
+    // This is not canon but has been observed in the wild.
+    if (bmpHeight < 0) {
+        bmpHeight = -bmpHeight;
+        flip      = false;
+    }
+
+    // Crop area to be loaded
+    w = bmpWidth;
+    h = bmpHeight;
+    if ((x+w-1) >= m_width)  w = m_width  - x;
+    if ((y+h-1) >= m_height) h = m_height - y;
+
+    // Set TFT address window to clipped image bounds
+    setAddrWindow(x, y, x+w-1, y+h-1);
+
+    // For each scanline...
+    for (row=0; row<h; row++) {
+        // Seek to start of scan line.  It might seem labor-
+        // intensive to be doing this on every line, but this
+        // method covers a lot of gritty details like cropping
+        // and scanline padding.  Also, the seek only takes
+        // place if the file position actually needs to change
+        // (avoids a lot of cluster math in SD library).
+        if (flip) {
+            // Bitmap is stored bottom-to-top order (normal BMP)
+            pos = bmpImageoffset + (bmpHeight - 1 - row) * rowSize;
+        } else {
+            // Bitmap is stored top-to-bottom
+            pos = bmpImageoffset + row * rowSize;
+        }
+
+        // Need seek
+        if (bmpFile.tellg() != pos) {
+            bmpFile.clear();
+            bmpFile.seekg(pos, std::ios::beg);
+            buffidx = sizeof(sdbuffer); // Force buffer reload
+        }
+
+        for (col=0; col<w; col++) { // For each pixel...
+            // Time to read more pixel data?
+            if (buffidx >= sizeof(sdbuffer)) { // Indeed
+                bmpFile.read((char *)&sdbuffer, sizeof(sdbuffer));
+                buffidx = 0; // Set index to beginning
+            }
+
+            // Convert pixel from BMP to TFT format, push to display
+            b = sdbuffer[buffidx++];
+            g = sdbuffer[buffidx++];
+            r = sdbuffer[buffidx++];
+            setPixel(col, row, toColor565(r,g,b));
+        } // end pixel
+    } // end scanline
+
+    bmpFile.close();
+    return;
+}
+
+uint16_t GFX::read16(std::ifstream &f) {
+    uint16_t result;
+    f.read(((char *)&result), 2);
+    return result;
+}
+
+uint32_t GFX::read32(std::ifstream &f) {
+    uint32_t result;
+    f.read(((char *)&result), 4);
+    return result;
+}
+
+// Pass 8-bit (each) R,G,B, get back 16-bit packed color
+uint16_t GFX::toColor565(uint8_t r, uint8_t g, uint8_t b) {
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }

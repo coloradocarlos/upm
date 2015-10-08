@@ -210,7 +210,7 @@ ST7735::refresh () {
     // Work around for ioctl() brain freeze on Edison breakout board
     int fragmentDivisor;
     if (mraa_get_platform_type() == MRAA_INTEL_EDISON_FAB_C) {
-        fragmentDivisor = 1280;
+        fragmentDivisor = 2560;
     } else {
         fragmentDivisor = 20;
     }
@@ -221,6 +221,10 @@ ST7735::refresh () {
         // uint8_t* x = mraa_spi_write_buf(m_spi, &m_map[fragment * fragmentSize], fragmentSize);
         // free(x);
         res = mraa_spi_transfer_buf(m_spi, &m_map[fragment * fragmentSize], NULL, fragmentSize);
+        if (res != MRAA_SUCCESS) {
+            fprintf (stderr, "%s: Failed mraa_spi_transfer_buf(), mraa_result_t=%d", __FUNCTION__, res);
+            break;
+        }
     }
 }
 
