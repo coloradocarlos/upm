@@ -27,6 +27,7 @@
 
 #include <iostream>
 #include <string>
+#include <stdexcept>
 
 #include "ds1307.h"
 
@@ -34,26 +35,21 @@ using namespace upm;
 using namespace std;
 
 
-DS1307::DS1307(int bus)
+DS1307::DS1307(int bus) : m_i2c(bus)
 {
   // setup our i2c link
-  m_i2c = mraa_i2c_init(bus);
-
-  mraa_result_t ret = mraa_i2c_address(m_i2c, DS1307_I2C_ADDR);
-
-  if (ret != MRAA_SUCCESS) 
-    cerr << "DS1307: Could not initialize i2c bus. " << endl;
+  mraa::Result ret = m_i2c.address(DS1307_I2C_ADDR);
+  if (ret != mraa::SUCCESS){
+    throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": i2c.address() failed");
+    return;
+  }
 }
 
-DS1307::~DS1307()
-{
-  mraa_i2c_stop(m_i2c);
-}
-
-mraa_result_t DS1307::writeBytes(uint8_t reg, uint8_t *buffer, unsigned int len)
+mraa::Result DS1307::writeBytes(uint8_t reg, uint8_t *buffer, int len)
 {
   if (!len || !buffer)
-    return MRAA_ERROR_INVALID_PARAMETER;
+    return mraa::ERROR_INVALID_PARAMETER;
 
   // create a buffer 1 byte larger than the supplied buffer,
   // store the register in the first byte
@@ -65,20 +61,30 @@ mraa_result_t DS1307::writeBytes(uint8_t reg, uint8_t *buffer, unsigned int len)
   for (int i=1; i<(len + 1); i++)
     buf2[i] = buffer[i-1];
 
-  mraa_i2c_address(m_i2c, DS1307_I2C_ADDR);
+  mraa::Result ret = m_i2c.address(DS1307_I2C_ADDR);
+  if (ret != mraa::SUCCESS){
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": i2c.address() failed");
+      return ret;
+  }
 
-  return mraa_i2c_write(m_i2c, buf2, len + 1);
+  return m_i2c.write(buf2, len + 1);
 }
 
-uint8_t DS1307::readBytes(uint8_t reg, uint8_t *buffer, unsigned int len)
+int DS1307::readBytes(uint8_t reg, uint8_t *buffer, int len)
 {
   if (!len || !buffer)
     return 0;
 
-  mraa_i2c_address(m_i2c, DS1307_I2C_ADDR);
-  mraa_i2c_write_byte(m_i2c, reg);
+  mraa::Result ret = m_i2c.address(DS1307_I2C_ADDR);
+  if (ret != mraa::SUCCESS){
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": i2c.address() failed");
+      return 0;
+  }
+  m_i2c.writeByte(reg);
 
-  return mraa_i2c_read(m_i2c, buffer, len);
+  return m_i2c.read(buffer, len);
 }
 
 bool DS1307::loadTime()
@@ -90,8 +96,8 @@ bool DS1307::loadTime()
   if (bytesRead != 7)
     { 
       // problem
-      cerr << __FUNCTION__ << ": read " << bytesRead <<
-        " bytes, expected 7." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": failed to read expected 7 bytes from device");
       return false;
     }
 
@@ -166,7 +172,7 @@ bool DS1307::setTime()
   return writeBytes(0, buffer, 7);
 }
 
-mraa_result_t DS1307::enableClock()
+mraa::Result DS1307::enableClock()
 {
   // the oscillator enable bit is the high bit of reg 0
   // so read it, clear it, and write it back.
@@ -179,7 +185,7 @@ mraa_result_t DS1307::enableClock()
   return writeBytes(0, &buf, 1);
 }
 
-mraa_result_t DS1307::disableClock()
+mraa::Result DS1307::disableClock()
 {
   // the oscillator enable bit is the high bit of reg 0
   // so read it, set it, and write it back.

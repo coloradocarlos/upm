@@ -49,7 +49,8 @@ bool MPU9150::init()
   // init the gyro/accel component
   if (!MPU60X0::init())
     {
-      cerr << __FUNCTION__ << ": Unable to init MPU60X0" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to init MPU60X0");
       return false;
     }
 
@@ -57,7 +58,8 @@ bool MPU9150::init()
   // will allow us to access the AK8975 Magnetometer on I2C addr 0x0c.
   if (!enableI2CBypass(true))
     {
-      cerr << __FUNCTION__ << ": Unable to enable I2C bypass" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to enable I2C bypass");
       return false;
     }
 
@@ -67,7 +69,8 @@ bool MPU9150::init()
 
   if (!m_mag->init())
     {
-      cerr << __FUNCTION__ << ": Unable to init magnetometer" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to init magnetometer");
       delete m_mag;
       m_mag = 0;
       return false;
@@ -100,3 +103,12 @@ void MPU9150::getMagnetometer(float *x, float *y, float *z)
   if (z)
     *z = mz;
 }
+
+#ifdef SWIGJAVA
+float *MPU9150::getMagnetometer()
+{
+    float *v = new float[3];
+    getMagnetometer(&v[0], &v[1], &v[2]);
+    return v;
+}
+#endif

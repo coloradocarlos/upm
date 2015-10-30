@@ -50,11 +50,11 @@ MPU60X0::MPU60X0(int bus, uint8_t address) :
   m_accelScale = 1.0;
   m_gyroScale = 1.0;
 
-  mraa_result_t rv;
-  if ( (rv = m_i2c.address(m_addr)) != MRAA_SUCCESS)
+  mraa::Result rv;
+  if ( (rv = m_i2c.address(m_addr)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": Could not initialize i2c address. " << endl;
-      mraa_result_print(rv);
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.address() failed");
       return;
     }
 }
@@ -69,7 +69,8 @@ bool MPU60X0::init()
   // first, take the device out of sleep mode
   if (!setSleep(false))
     {
-      cerr << __FUNCTION__ << ": Unable to wake up device" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to wake up device");
       return false;
     }
 
@@ -77,7 +78,8 @@ bool MPU60X0::init()
   // internal clock for stability
   if (!setClockSource(PLL_XG))
     {
-      cerr << __FUNCTION__ << ": Unable to set clock source" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to set clock source");
       return false;
     }
 
@@ -139,18 +141,18 @@ uint8_t MPU60X0::readReg(uint8_t reg)
   return m_i2c.readReg(reg);
 }
 
-void MPU60X0::readRegs(uint8_t reg, uint8_t *buf, int len)
+void MPU60X0::readRegs(uint8_t reg, uint8_t *buffer, int len)
 {
-  m_i2c.readBytesReg(reg, buf, len);
+  m_i2c.readBytesReg(reg, buffer, len);
 }
 
 bool MPU60X0::writeReg(uint8_t reg, uint8_t val)
 {
-  mraa_result_t rv;
-  if ((rv = m_i2c.writeReg(reg, val)) != MRAA_SUCCESS)
+  mraa::Result rv;
+  if ((rv = m_i2c.writeReg(reg, val)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": failed:" << endl;
-      mraa_result_print(rv);
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.writeReg() failed");
       return false;
     } 
   
@@ -215,7 +217,8 @@ bool MPU60X0::setGyroscopeScale(FS_SEL_T scale)
 
     default: // should never occur, but...
       m_gyroScale = 1.0;        // set a safe, though incorrect value
-      cerr << __FUNCTION__ << ": internal error, unsupported scale" << endl;
+      throw std::logic_error(string(__FUNCTION__) + 
+                             ": internal error, unsupported scale");
       break;
     }
 
@@ -257,7 +260,8 @@ bool MPU60X0::setAccelerometerScale(AFS_SEL_T scale)
 
     default: // should never occur, but...
       m_accelScale = 1.0;        // set a safe, though incorrect value
-      cerr << __FUNCTION__ << ": internal error, unsupported scale" << endl;
+      throw std::logic_error(string(__FUNCTION__) + 
+                             ": internal error, unsupported scale");
       break;
     }
 
@@ -379,6 +383,14 @@ uint8_t MPU60X0::getInterruptPinConfig()
 {
   return readReg(REG_INT_PIN_CFG);
 }
+
+#ifdef JAVACALLBACK
+void MPU60X0::installISR(int gpio, mraa::Edge level,
+                         IsrCallback *cb)
+{
+        installISR(gpio, level, generic_callback_isr, cb);
+}
+#endif
 
 void MPU60X0::installISR(int gpio, mraa::Edge level, 
                          void (*isr)(void *), void *arg)

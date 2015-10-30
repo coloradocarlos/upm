@@ -26,6 +26,8 @@
  */
 
 #include <iostream>
+#include <string>
+#include <stdexcept>
 
 #include "adxl335.h"
 
@@ -41,19 +43,22 @@ ADXL335::ADXL335(int pinX, int pinY, int pinZ, float aref)
 
   if ( !(m_aioX = mraa_aio_init(pinX)) )
     {
-      cerr << __FUNCTION__ << ": mraa_aio_init(X) failed" << endl;
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_aio_init(X) failed, invalid pin?");
       return;
     }
 
   if ( !(m_aioY = mraa_aio_init(pinY)) )
     {
-      cerr << __FUNCTION__ << ": mraa_aio_init(Y) failed" << endl;
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_aio_init(Y) failed, invalid pin?");
       return;
     }
 
   if ( !(m_aioZ = mraa_aio_init(pinZ)) )
     {
-      cerr << __FUNCTION__ << ": mraa_aio_init(Z) failed" << endl;
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_aio_init(Z) failed, invalid pin?");
       return;
     }
 }
@@ -72,6 +77,15 @@ void ADXL335::values(int *xVal, int *yVal, int *zVal)
   *zVal = mraa_aio_read(m_aioZ);
 }
 
+#ifdef SWIGJAVA
+int *ADXL335::values()
+{
+  int *v = new int[3];
+  values(&v[0], &v[1], &v[2]);
+  return v;
+}
+#endif
+
 void ADXL335::acceleration(float *xAccel, float *yAccel, float *zAccel)
 {
   int x, y, z;
@@ -86,6 +100,15 @@ void ADXL335::acceleration(float *xAccel, float *yAccel, float *zAccel)
   *yAccel = (yVolts - m_zeroY) / ADXL335_SENSITIVITY;
   *zAccel = (zVolts - m_zeroZ) / ADXL335_SENSITIVITY;
 }
+
+#ifdef SWIGJAVA
+float *ADXL335::acceleration()
+{
+  float *v = new float[3];
+  acceleration(&v[0], &v[1], &v[2]);
+  return v;
+}
+#endif
 
 void ADXL335::calibrate()
 {

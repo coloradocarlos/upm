@@ -24,6 +24,7 @@
 
 #include <iostream>
 #include <string>
+#include <stdexcept>
 
 #include "mpr121.h"
 
@@ -31,31 +32,26 @@ using namespace upm;
 using namespace std;
 
 
-MPR121::MPR121(int bus, uint8_t address)
+MPR121::MPR121(int bus, uint8_t address) : m_i2c(bus)
 {
-  // setup our i2c link
-  m_i2c = mraa_i2c_init(bus);
-
   m_addr = address;
+  mraa::Result ret = m_i2c.address(m_addr);
 
-  mraa_result_t ret = mraa_i2c_address(m_i2c, m_addr);
-
-  if (ret != MRAA_SUCCESS) 
-    cerr << "MPR121: Could not initialize i2c bus. " << endl;
+  if (ret != mraa::SUCCESS) 
+    {
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_i2c_address() failed");
+      return;
+    }
 
   m_buttonStates = 0;
   m_overCurrentFault = false;
 }
 
-MPR121::~MPR121()
-{
-  mraa_i2c_stop(m_i2c);
-}
-
-mraa_result_t MPR121::writeBytes(uint8_t reg, uint8_t *buffer, unsigned int len)
+mraa::Result MPR121::writeBytes(uint8_t reg, uint8_t *buffer, int len)
 {
   if (!len || !buffer)
-    return MRAA_SUCCESS;
+    return mraa::SUCCESS;
 
   // create a buffer 1 byte larger than the supplied buffer,
   // store the register in the first byte
@@ -67,22 +63,22 @@ mraa_result_t MPR121::writeBytes(uint8_t reg, uint8_t *buffer, unsigned int len)
   for (int i=1; i<(len + 1); i++)
     buf2[i] = buffer[i-1];
 
-  mraa_i2c_address(m_i2c, m_addr);
+  m_i2c.address(m_addr);
 
-  return mraa_i2c_write(m_i2c, buf2, len + 1);
+  return m_i2c.write(buf2, len + 1);
 }
 
-void MPR121::readBytes(uint8_t reg, uint8_t *buffer, unsigned int len)
+int MPR121::readBytes(uint8_t reg, uint8_t *buffer, int len)
 {
   if (!len || !buffer)
-    return;
+    return 0;
 
-  // The usual mraa_i2c_read() does not work here, so we need to
+  // The usual m_i2c.read() does not work here, so we need to
   // read each byte individually.
   for (int i=0; i<len; i++)
-    buffer[i] = mraa_i2c_read_byte_data(m_i2c, reg + i);
+    buffer[i] = m_i2c.readReg(reg + i);
 
-  return;
+  return len;
 }
 
 bool MPR121::configAN3944()
@@ -90,15 +86,16 @@ bool MPR121::configAN3944()
   // Configure the mpr121 chip as recommended in the AN3944 MPR121
   // Quick Start Guide
 
-  mraa_result_t rv;
+  mraa::Result rv;
 
   // First, turn off all electrodes by zeroing out the Electrode Configuration
   // register.
   // If this one fails, it's unlikely any of the others will succeed.
   uint8_t eleConf = 0x00;
-  if ((rv = writeBytes(0x5e, &eleConf, 1)) != MRAA_SUCCESS)
+  if ((rv = writeBytes(0x5e, &eleConf, 1)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": " << __LINE__<< ": I2C write failed." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": writeBytes(0x5e) failed");
       return false;
     }
 
@@ -106,9 +103,10 @@ bool MPR121::configAN3944()
   // Filtering when data is greater than baseline
   // regs 0x2b-0x2e
   uint8_t sectA[] = { 0x01, 0x01, 0x00, 0x00 };
-  if ((rv = writeBytes(0x2b, sectA, 4)) != MRAA_SUCCESS)
+  if ((rv = writeBytes(0x2b, sectA, 4)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": " << __LINE__<< ": I2C write failed." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": writeBytes(0x2b) failed");
       return false;
     }
 
@@ -116,9 +114,10 @@ bool MPR121::configAN3944()
   // Filtering when data is less than baseline
   // regs 0x2f-0x32
   uint8_t sectB[] = { 0x01, 0x01, 0xff, 0x02 };
-  if ((rv = writeBytes(0x2f, sectB, 4)) != MRAA_SUCCESS)
+  if ((rv = writeBytes(0x2f, sectB, 4)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": " << __LINE__<< ": I2C write failed." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": writeBytes(0x2f) failed");
       return false;
     }
 
@@ -126,7 +125,7 @@ bool MPR121::configAN3944()
   // Touch Threshold/Release registers, ELE0-ELE11
   // regs 0x41-0x58
   //                __T_  __R_
-  uint8_t sectC[] = { 0x0f, 0x0a, 
+  uint8_t sectC[] = { 0x0f, 0x0a,
                       0x0f, 0x0a,
                       0x0f, 0x0a,
                       0x0f, 0x0a,
@@ -138,9 +137,10 @@ bool MPR121::configAN3944()
                       0x0f, 0x0a,
                       0x0f, 0x0a,
                       0x0f, 0x0a };
-  if ((rv = writeBytes(0x41, sectC, 24)) != MRAA_SUCCESS)
+  if ((rv = writeBytes(0x41, sectC, 24)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": " << __LINE__<< ": I2C write failed." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": writeBytes(0x41) failed");
       return false;
     }
 
@@ -148,9 +148,10 @@ bool MPR121::configAN3944()
   // Filter configuration
   // reg 0x5d
   uint8_t filterConf = 0x04;
-  if ((rv = writeBytes(0x5d, &filterConf, 1)) != MRAA_SUCCESS)
+  if ((rv = writeBytes(0x5d, &filterConf, 1)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": " << __LINE__<< ": I2C write failed." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": writeBytes(0x5d) failed");
       return false;
     }
 
@@ -158,15 +159,17 @@ bool MPR121::configAN3944()
   // Autoconfiguration registers
   // regs 0x7b-0x7f
   uint8_t sectF0 = 0x0b;
-  if ((rv = writeBytes(0x7b, &sectF0, 1)) != MRAA_SUCCESS)
+  if ((rv = writeBytes(0x7b, &sectF0, 1)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": " << __LINE__<< ": I2C write failed." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": writeBytes(0x7b) failed");
       return false;
     }
   uint8_t sectF1[] = { 0x9c, 0x65, 0x8c };
-  if ((rv = writeBytes(0x7d, sectF1, 3)) != MRAA_SUCCESS)
+  if ((rv = writeBytes(0x7d, sectF1, 3)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": " << __LINE__<< ": I2C write failed." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": writeBytes(0x7d) failed");
       return false;
     }
 
@@ -175,9 +178,10 @@ bool MPR121::configAN3944()
   // excessive calibration delay on startup.
   // reg 0x5e
   eleConf = 0x8c;
-  if ((rv = writeBytes(0x5e, &eleConf, 1)) != MRAA_SUCCESS)
+  if ((rv = writeBytes(0x5e, &eleConf, 1)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": " << __LINE__<< ": I2C write failed." << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": writeBytes(0x5e) failed");
       return false;
     }
 

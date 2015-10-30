@@ -27,7 +27,7 @@
 #pragma once
 
 #include <string>
-#include <mraa/i2c.h>
+#include <mraa/i2c.hpp>
 
 #define DS1307_I2C_BUS     0
 #define DS1307_I2C_ADDR    0x68
@@ -78,11 +78,6 @@ namespace upm {
     DS1307(int bus);
 
     /**
-     * DS1307 destructor
-     */
-    ~DS1307();
-
-    /**
      * Loads all the time values
      *
      * @return True if time data loaded successfully
@@ -100,17 +95,17 @@ namespace upm {
     /**
      * Enables an oscillator on the clock.
      *
-     * @return 0 (MRAA_SUCCESS) if successful; non-zero otherwise
+     * @return 0 (mraa::SUCCESS) if successful; non-zero otherwise
      */
-    mraa_result_t enableClock();
+    mraa::Result enableClock();
 
     /**
      * Disables the oscillator on the clock. This prevents the clock
      * from updating any time/date values
      *
-     * @return 0 (MRAA_SUCCESS) if successful; non-zero otherwise
+     * @return 0 (mraa::SUCCESS) if successful; non-zero otherwise
      */
-    mraa_result_t disableClock();
+    mraa::Result disableClock();
 
     /**
      * Writes value(s) into registers
@@ -118,9 +113,9 @@ namespace upm {
      * @param reg Register location to start writing into
      * @param buffer Buffer for data storage
      * @param len Number of bytes to write
-     * @return 0 (MRAA_SUCCESS) if successful; non-zero otherwise
+     * @return 0 (mraa::SUCCESS) if successful; non-zero otherwise
      */
-    mraa_result_t writeBytes(uint8_t reg, uint8_t *buffer, unsigned int len);
+    mraa::Result writeBytes(uint8_t reg, uint8_t *buffer, int len);
 
     /**
      * Reads value(s) from registers
@@ -130,7 +125,7 @@ namespace upm {
      * @param len Number of bytes to read
      * @return Number of bytes read
      */
-    uint8_t readBytes(uint8_t reg, uint8_t *buffer, unsigned int len);
+    int readBytes(uint8_t reg, uint8_t *buffer, int len);
 
     /**
      * Converts a BCD value into decimal
@@ -191,7 +186,7 @@ namespace upm {
     bool pm;
 
   private:
-    mraa_i2c_context m_i2c;
+    mraa::I2c m_i2c;
   };
 }
 

@@ -23,6 +23,8 @@
  */
 
 #include <iostream>
+#include <string>
+#include <stdexcept>
 
 #include "rpr220.h"
 
@@ -35,7 +37,8 @@ RPR220::RPR220(int pin)
 
   if ( !(m_gpio = mraa_gpio_init(pin)) )
    {
-      cerr << __FUNCTION__ << ": mraa_gpio_init() failed" << endl;
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_gpio_init() failed, invalid pin?");
       return;
     }
 
@@ -54,6 +57,13 @@ bool RPR220::blackDetected()
 {
   return (mraa_gpio_read(m_gpio) ? true : false);
 }
+
+#ifdef JAVACALLBACK
+void RPR220::installISR(IsrCallback *cb)
+{
+  installISR(generic_callback_isr, cb);
+}
+#endif
 
 void RPR220::installISR(void (*isr)(void *), void *arg)
 {

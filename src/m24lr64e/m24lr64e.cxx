@@ -41,11 +41,11 @@ M24LR64E::M24LR64E(int bus, AccessMode mode):
   else
     m_addr = M24LR64E_DEFAULT_I2C_ADDR_E2;
 
-  mraa_result_t rv;
-  if ( (rv = m_i2c.address(m_addr)) != MRAA_SUCCESS)
+  mraa::Result rv;
+  if ( (rv = m_i2c.address(m_addr)) != mraa::SUCCESS)
     {
-      cerr << "M24LR64E: Could not initialize i2c address. " << endl;
-      mraa_result_print(rv);
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.address() failed");
       return;
     }
 }
@@ -78,7 +78,8 @@ bool M24LR64E::submitPasswd(uint32_t passwd)
   
   if (m_i2c.write(buf, pktLen))
     {
-      cerr << __FUNCTION__ << "@" << __LINE__ << ": write failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.write() failed");
       return false;
     }
 
@@ -108,7 +109,8 @@ bool M24LR64E::writePasswd(uint32_t passwd)
   
   if (m_i2c.write(buf, pktLen))
     {
-      cerr << __FUNCTION__ << "@" << __LINE__ << ": write failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.write() failed");
       return false;
     }
 
@@ -163,9 +165,12 @@ uint8_t M24LR64E::getAFI()
   return EEPROM_Read_Byte(AFI_ADDR);
 }
 
-void M24LR64E::getUID(uint8_t* buf)
+uint8_t *M24LR64E::getUID()
 {
-  EEPROM_Read_Bytes(UID_ADDR,buf,UID_LENGTH);    
+  uint8_t* buffer = new uint8_t[UID_LENGTH];
+  EEPROM_Read_Bytes(UID_ADDR, buffer, UID_LENGTH);
+
+  return buffer;
 }
 
 uint32_t M24LR64E::getMemorySize()
@@ -184,14 +189,14 @@ void M24LR64E::clearMemory()
   }
 }
 
-void M24LR64E::writeByte(unsigned int address, uint8_t data)
+mraa::Result M24LR64E::writeByte(unsigned int address, uint8_t data)
 {
-  EEPROM_Write_Byte(address, data);
+  return EEPROM_Write_Byte(address, data);
 }
 
-void M24LR64E::writeBytes(unsigned int address, uint8_t* buf, unsigned int len)
+mraa::Result M24LR64E::writeBytes(unsigned int address, uint8_t* buffer, int len)
 {
-  EEPROM_Write_Bytes(address, buf, len);
+  return EEPROM_Write_Bytes(address, buffer, len);
 }
 
 uint8_t M24LR64E::readByte(unsigned int address)
@@ -199,31 +204,35 @@ uint8_t M24LR64E::readByte(unsigned int address)
   return EEPROM_Read_Byte(address);
 }
 
-void M24LR64E::readBytes(unsigned int address, uint8_t* buf, unsigned int len)
+int M24LR64E::readBytes(unsigned int address, uint8_t* buffer, int len)
 {
-  EEPROM_Read_Bytes(address, buf, len);
+  return EEPROM_Read_Bytes(address, buffer, len);
 }
 
-void M24LR64E::EEPROM_Write_Byte(unsigned int address, uint8_t data)
+mraa::Result M24LR64E::EEPROM_Write_Byte(unsigned int address, uint8_t data)
 {
   const int pktLen = 3;
   uint8_t buf[pktLen];
+  mraa::Result rv;
   
   buf[0] = ((address >> 8) & 0xff);
   buf[1] = (address & 0xff);
   buf[2] = data;
 
-  if (m_i2c.write(buf, pktLen))
-    cerr << __FUNCTION__ << "@" << __LINE__ << ": write failed" << endl;
+  if ((rv = m_i2c.write(buf, pktLen)))
+    throw std::runtime_error(std::string(__FUNCTION__) +
+                             ": I2c.write() failed");
 
   usleep(I2C_WRITE_TIME * 1000);
+  return rv;
 }
 
-void M24LR64E::EEPROM_Write_Bytes(unsigned int address, uint8_t* data,
-                                  unsigned int len)
+mraa::Result M24LR64E::EEPROM_Write_Bytes(unsigned int address, uint8_t* data,
+                                  int len)
 {
   const int pktLen = 2 + len;
   uint8_t buf[pktLen];
+  mraa::Result rv;
   
   buf[0] = ((address >> 8) & 0xff);
   buf[1] = (address & 0xff);
@@ -231,10 +240,13 @@ void M24LR64E::EEPROM_Write_Bytes(unsigned int address, uint8_t* data,
   for (int i=0; i<len; i++)
     buf[2+i] = data[i];
 
-  if (m_i2c.write(buf, pktLen))
-    cerr << __FUNCTION__ << "@" << __LINE__ << ": write failed" << endl;
+  if ((rv = m_i2c.write(buf, pktLen)))
+    throw std::runtime_error(std::string(__FUNCTION__) +
+                             ": I2c.write() failed");
 
   usleep(I2C_WRITE_TIME * 1000);
+
+  return rv;
 }
 
 uint8_t M24LR64E::EEPROM_Read_Byte(unsigned int address)
@@ -247,7 +259,8 @@ uint8_t M24LR64E::EEPROM_Read_Byte(unsigned int address)
   
   if (m_i2c.write(abuf, apktLen))
     {
-      cerr << __FUNCTION__ << "@" << __LINE__ << ": write failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.write() failed");
       return 0x00;
     }
 
@@ -258,15 +271,16 @@ uint8_t M24LR64E::EEPROM_Read_Byte(unsigned int address)
   
   if (m_i2c.read(buf, pktLen) != pktLen)
     {
-      cerr << __FUNCTION__ << "@" << __LINE__ << ": read failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.write() failed");
       return 0x00;
     }
   
   return buf[0];
 }
 
-unsigned int M24LR64E::EEPROM_Read_Bytes(unsigned int address, 
-                                         uint8_t* buf, unsigned int len)
+int M24LR64E::EEPROM_Read_Bytes(unsigned int address, 
+                                         uint8_t* buffer, int len)
 {
   const int apktLen = 2;
   uint8_t abuf[apktLen];
@@ -276,14 +290,16 @@ unsigned int M24LR64E::EEPROM_Read_Bytes(unsigned int address,
   
   if (m_i2c.write(abuf, apktLen))
     {
-      cerr << __FUNCTION__ << "@" << __LINE__ << ": write failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.write() failed");
       return false;
     }
 
-  int rv = m_i2c.read(buf, len);
+  int rv = m_i2c.read(buffer, len);
   if (rv != len)
     {
-      cerr << __FUNCTION__ << "@" << __LINE__ << ": read failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.read() failed");
     }
 
   return rv;

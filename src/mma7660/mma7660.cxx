@@ -23,6 +23,7 @@
  */
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 #include "mma7660.h"
@@ -39,7 +40,8 @@ MMA7660::MMA7660(int bus, uint8_t address)
   // setup our i2c link
   if ( !(m_i2c = mraa_i2c_init(bus)) )
     {
-      cerr << "MMA7660: mraa_i2c_init() failed." << endl;
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_i2c_init() failed");
       return;
     }
       
@@ -47,8 +49,8 @@ MMA7660::MMA7660(int bus, uint8_t address)
   
   if ( (rv = mraa_i2c_address(m_i2c, m_addr)) != MRAA_SUCCESS)
     {
-      cerr << "MMA7660: Could not initialize i2c bus. " << endl;
-      mraa_result_print(rv);
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_i2c_address() failed");
       return;
     }
 }
@@ -88,6 +90,15 @@ void MMA7660::getRawValues(int *x, int *y, int *z)
   *z = getVerifiedAxis(REG_ZOUT);
 }
 
+#ifdef JAVACALLBACK
+int *MMA7660::getRawValues()
+{
+  int *values = new int[3];
+  getRawValues(&values[0], &values[1], &values[2]);
+  return values;
+}
+#endif
+
 void MMA7660::setModeActive()
 {
   uint8_t modeReg = readByte(REG_MODE);
@@ -119,7 +130,8 @@ int MMA7660::getVerifiedAxis(MMA7660_REG_T axis)
 
   if (axis > 2)
     {
-      cerr << __FUNCTION__ << ": axis must be 0, 1, or 2." << endl;
+      throw std::out_of_range(std::string(__FUNCTION__) +
+                              ": axis must be 0, 1, or 2.");
       return 0;
     }
 
@@ -152,7 +164,6 @@ uint8_t MMA7660::getVerifiedTilt()
     // check alert bit
   } while (val & 0x40);
 
-  // shift the sign bit over, and compensate
   return val;
 }
 
@@ -195,6 +206,13 @@ bool MMA7660::tiltShake()
     return false;
 }
 
+#ifdef JAVACALLBACK
+void MMA7660::installISR(int pin, IsrCallback *cb)
+{
+        installISR(pin, generic_callback_isr, cb);
+}
+#endif
+
 void MMA7660::installISR(int pin, void (*isr)(void *), void *arg)
 {
   if (m_isrInstalled)
@@ -202,7 +220,8 @@ void MMA7660::installISR(int pin, void (*isr)(void *), void *arg)
 
   if ( !(m_gpio = mraa_gpio_init(pin)) )
     {
-      cerr << __FUNCTION__ << ": mraa_gpio_init() failed" << endl;
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_gpio_init() failed, invalid pin?");
       return;
     }
 
@@ -246,4 +265,13 @@ void MMA7660::getAcceleration(float *ax, float *ay, float *az)
   *ay = y/21.33;
   *az = z/21.33;
 }
+
+#ifdef JAVACALLBACK
+float *MMA7660::getAcceleration()
+{
+  float *values = new float[3];
+  getAcceleration(&values[0], &values[1], &values[2]);
+  return values;
+}
+#endif
 

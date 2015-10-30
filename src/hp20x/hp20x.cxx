@@ -26,6 +26,7 @@
 #include <math.h>
 #include <iostream>
 #include <string>
+#include <stdexcept>
 
 #include "hp20x.h"
 
@@ -38,11 +39,11 @@ HP20X::HP20X(int bus, uint8_t address):
 {
   m_addr = address;
 
-  mraa_result_t rv;
-  if ( (rv = m_i2c.address(m_addr)) != MRAA_SUCCESS)
+  mraa::Result rv;
+  if ( (rv = m_i2c.address(m_addr)) != mraa::SUCCESS)
     {
-      cerr << "HP20X: Could not initialize i2c address. " << endl;
-      mraa_result_print(rv);
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": I2c.address() failed");
       return;
     }
 }
@@ -90,18 +91,19 @@ bool HP20X::waitforDeviceReady()
       retries++;
     }
   
-  cerr << __FUNCTION__ << ": timeout waiting for device to become ready"
-       << endl;
+  throw std::runtime_error(std::string(__FUNCTION__) +
+                           ": timeout waiting for device to become ready");
 
   return false;
 }
 
 bool HP20X::writeCmd(uint8_t cmd)
 {
-  mraa_result_t rv;
-  if ((rv = m_i2c.writeByte(cmd)) != MRAA_SUCCESS)
+  mraa::Result rv;
+  if ((rv = m_i2c.writeByte(cmd)) != mraa::SUCCESS)
     {
-      mraa_result_print(rv);
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.writeByte() failed");
       return false;
     } 
 
@@ -114,10 +116,11 @@ bool HP20X::writeReg(HP20X_REG_T reg, uint8_t data)
 
   uint8_t r = CMD_WRITE_REG | reg;
 
-  mraa_result_t rv;
-  if ((rv = m_i2c.writeReg(r, data)) != MRAA_SUCCESS)
+  mraa::Result rv;
+  if ((rv = m_i2c.writeReg(r, data)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": writeReg failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.writeReg() failed");
       return false;
     }
  
@@ -137,7 +140,8 @@ int HP20X::readData()
 
   if (!m_i2c.read(buf, 3))
     {
-      cerr << __FUNCTION__ << ": read failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.read() failed");
       return 0;
     }
 
@@ -160,21 +164,13 @@ float HP20X::getTemperature()
 
   // start conversion, T only
   uint8_t cmd = CMD_ADC_CVT | (CHNL_T << CHNL_SHIFT) | (m_dsr << DSR_SHIFT);
-  if (!writeCmd(cmd))
-    {
-      cerr << __FUNCTION__ << ": writeCmd failed" << endl;
-      return 0;
-    }
+  writeCmd(cmd);
 
   // wait for the device to report ready
   waitforDeviceReady();
 
   // now read the temperature
-  if (!writeCmd(CMD_READ_T))
-    {
-      cerr << __FUNCTION__ << ": writeCmd failed" << endl;
-      return 0;
-    }
+  writeCmd(CMD_READ_T);
 
   return ((float)readData() / 100.0);
 }
@@ -186,21 +182,13 @@ float HP20X::getPressure()
 
   // start conversion, PT only
   uint8_t cmd = CMD_ADC_CVT | (CHNL_PT << CHNL_SHIFT) | (m_dsr << DSR_SHIFT);
-  if (!writeCmd(cmd))
-    {
-      cerr << __FUNCTION__ << ": writeCmd failed" << endl;
-      return 0;
-    }
+  writeCmd(cmd);
 
   // wait for the device to report ready
   waitforDeviceReady();
 
   // now read the pressure
-  if (!writeCmd(CMD_READ_P))
-    {
-      cerr << __FUNCTION__ << ": writeCmd failed" << endl;
-      return 0;
-    }
+  writeCmd(CMD_READ_P);
 
   return ((float)readData() / 100.0);
 }
@@ -212,21 +200,13 @@ float HP20X::getAltitude()
 
   // start conversion, PT only
   uint8_t cmd = CMD_ADC_CVT | (CHNL_PT << CHNL_SHIFT) | (m_dsr << DSR_SHIFT);
-  if (!writeCmd(cmd))
-    {
-      cerr << __FUNCTION__ << ": writeCmd failed" << endl;
-      return 0;
-    }
+  writeCmd(cmd);
 
   // wait for the device to report ready
   waitforDeviceReady();
 
   // now read the pressure
-  if (!writeCmd(CMD_READ_A))
-    {
-      cerr << __FUNCTION__ << ": writeCmd failed" << endl;
-      return 0;
-    }
+  writeCmd(CMD_READ_A);
 
   return ((float)readData() / 100.0);
 }

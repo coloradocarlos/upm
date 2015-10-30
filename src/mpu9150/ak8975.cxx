@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <string>
+#include <stdexcept>
 
 #include "ak8975.h"
 
@@ -40,11 +41,11 @@ AK8975::AK8975(int bus, uint8_t address):
   m_yCoeff = 0.0;
   m_zCoeff = 0.0;
 
-  mraa_result_t rv;
-  if ( (rv = m_i2c.address(m_addr)) != MRAA_SUCCESS)
+  mraa::Result rv;
+  if ( (rv = m_i2c.address(m_addr)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": Could not initialize i2c address. " << endl;
-      mraa_result_print(rv);
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.address() failed");
       return;
     }
 }
@@ -62,13 +63,15 @@ bool AK8975::init()
 
   if (!setMode(CNTL_PWRDWN))
     {
-      cerr << __FUNCTION__ << ": Unable to set PWRDWN mode" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to set PWRDWN mode");
       return false;
     }
 
   if (!setMode(CNTL_FUSE_ACCESS))
     {
-      cerr << __FUNCTION__ << ": Unable to set FUSE mode" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to set FUSE mode");
       return false;
     }
 
@@ -80,7 +83,8 @@ bool AK8975::init()
   // now, place back in power down mode
   if (!setMode(CNTL_PWRDWN))
     {
-      cerr << __FUNCTION__ << ": Unable to reset PWRDWN mode" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to set reset PWRDWN mode");
       return false;
     }
 
@@ -89,11 +93,11 @@ bool AK8975::init()
 
 bool AK8975::setMode(CNTL_MODES_T mode)
 {
-  mraa_result_t rv;
-  if ((rv = m_i2c.writeReg(REG_CNTL, mode)) != MRAA_SUCCESS)
+  mraa::Result rv;
+  if ((rv = m_i2c.writeReg(REG_CNTL, mode)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": failed:" << endl;
-      mraa_result_print(rv);
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": I2c.writeReg() failed");
       return false;
     } 
 
@@ -128,8 +132,8 @@ bool AK8975::waitforDeviceReady()
       retries++;
     }
   
-  cerr << __FUNCTION__ << ": timeout waiting for device to become ready"
-       << endl;
+  throw std::runtime_error(std::string(__FUNCTION__) +
+                           ": timeout waiting for device to become ready");
 
   return false;
 }
@@ -145,7 +149,8 @@ bool AK8975::update(bool selfTest)
       // First set measurement mode (take a measurement)
       if (!setMode(CNTL_MEASURE))
         {
-          cerr << __FUNCTION__ << ": Unable to set MEASURE mode" << endl;
+          throw std::runtime_error(std::string(__FUNCTION__) +
+                                   ": Unable to set MEASURE mode");
           return false;
         }
     }
@@ -171,27 +176,29 @@ bool AK8975::update(bool selfTest)
 
 bool AK8975::selfTest()
 {
-  mraa_result_t rv;
+  mraa::Result rv;
 
   // set power down first
   if (!setMode(CNTL_PWRDWN))
     {
-      cerr << __FUNCTION__ << ": Unable to set PWRDWN mode" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to set PWRDWN mode");
       return false;
     }
 
   // enable self test bit
-  if ((rv = m_i2c.writeReg(REG_ASTC, ASTC_SELF)) != MRAA_SUCCESS)
+  if ((rv = m_i2c.writeReg(REG_ASTC, ASTC_SELF)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": failed to enable self test:" << endl;
-      mraa_result_print(rv);
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": failed to enable self test");
       return false;
     } 
   
   // now set self test mode
   if (!setMode(CNTL_SELFTEST))
     {
-      cerr << __FUNCTION__ << ": Unable to set SELFTEST mode" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": Unable to set SELFTEST mode");
       return false;
     }
   
@@ -201,10 +208,10 @@ bool AK8975::selfTest()
   // Now, reset self test register
   uint8_t reg = m_i2c.readReg(REG_ASTC);
   reg &= ~ASTC_SELF;
-  if ((rv = m_i2c.writeReg(REG_ASTC, reg)) != MRAA_SUCCESS)
+  if ((rv = m_i2c.writeReg(REG_ASTC, reg)) != mraa::SUCCESS)
     {
-      cerr << __FUNCTION__ << ": failed to disable self test:" << endl;
-      mraa_result_print(rv);
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": failed to disable self test");
       return false;
     } 
 

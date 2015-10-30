@@ -23,6 +23,8 @@
  */
 
 #include <iostream>
+#include <string>
+#include <stdexcept>
 
 #include "a110x.h"
 
@@ -33,7 +35,8 @@ A110X::A110X(int pin)
 {
   if ( !(m_gpio = mraa_gpio_init(pin)) )
     {
-      cerr << __FUNCTION__ << ": mraa_gpio_init() failed" << endl;
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_gpio_init() failed, invalid pin?");
       return;
     }
 
@@ -53,6 +56,13 @@ bool A110X::magnetDetected()
 {
   return (!mraa_gpio_read(m_gpio) ? true : false);
 }
+
+#ifdef JAVACALLBACK
+void A110X::installISR( IsrCallback *cb)
+{
+installISR(generic_callback_isr, cb);
+}
+#endif
 
 void A110X::installISR(void (*isr)(void *), void *arg)
 {

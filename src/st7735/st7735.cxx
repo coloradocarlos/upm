@@ -23,6 +23,8 @@
  */
 
 #include <iostream>
+#include <string>
+#include <stdexcept>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -32,100 +34,49 @@
 
 using namespace upm;
 
-ST7735::ST7735 (uint8_t csLCD, uint8_t cSD, uint8_t rs, uint8_t rst) : GFX (ST7735_TFTHEIGHT, ST7735_TFTWIDTH, m_map, font) {
-    mraa_init();
-
-    m_csLCD = csLCD;
-    m_cSD   = cSD;
-    m_rST   = rst;
-    m_rS    = rs;
+ST7735::ST7735 (uint8_t csLCD, uint8_t cSD, uint8_t rs, uint8_t rst)
+    : GFX (ST7735_TFTHEIGHT, ST7735_TFTWIDTH, m_map, font), m_csLCDPinCtx(csLCD), m_cSDPinCtx(cSD),
+      m_rSTPinCtx(rst), m_rSPinCtx(rs), m_spi(0) {
 
     initModule ();
     configModule ();
 }
 
-ST7735::~ST7735 () {
-    mraa_result_t error = MRAA_SUCCESS;
-    error = mraa_spi_stop(m_spi);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print(error);
-    }
-    error = mraa_gpio_close (m_csLCDPinCtx);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print(error);
-    }
-    error = mraa_gpio_close (m_cSDPinCtx);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print(error);
-    }
-    error = mraa_gpio_close (m_rSTPinCtx);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print(error);
-    }
-    error = mraa_gpio_close (m_rSPinCtx);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print(error);
-    }
-}
-
 void
 ST7735::initModule () {
-    mraa_result_t error = MRAA_SUCCESS;
+    mraa::Result error = mraa::SUCCESS;
 
     // m_height and m_width initialized in configModule() call to setRotation()
 
-    m_csLCDPinCtx = mraa_gpio_init (m_csLCD);
-    if (m_csLCDPinCtx == NULL) {
-        fprintf (stderr, "Are you sure that pin%d you requested is valid on your platform?", m_csLCD);
-        exit (1);
+    // m_spi.frequency(15 * 1000000); // Do we need to initialize frequence here?
+
+    error = m_csLCDPinCtx.dir(mraa::DIR_OUT);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
-    m_cSDPinCtx = mraa_gpio_init (m_cSD);
-    if (m_cSDPinCtx == NULL) {
-        fprintf (stderr, "Are you sure that pin%d you requested is valid on your platform?", m_cSD);
-        exit (1);
+    error = m_cSDPinCtx.dir(mraa::DIR_OUT);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
-    m_rSTPinCtx = mraa_gpio_init (m_rST);
-    if (m_rSTPinCtx == NULL) {
-        fprintf (stderr, "Are you sure that pin%d you requested is valid on your platform?", m_rST);
-        exit (1);
+    error = m_rSTPinCtx.dir(mraa::DIR_OUT);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
-    m_rSPinCtx = mraa_gpio_init (m_rS);
-    if (m_rSPinCtx == NULL) {
-        fprintf (stderr, "Are you sure that pin%d you requested is valid on your platform?", m_rS);
-        exit (1);
+    error = m_rSPinCtx.dir(mraa::DIR_OUT);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
-    error = mraa_gpio_dir (m_csLCDPinCtx, MRAA_GPIO_OUT);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
-    }
-
-    error = mraa_gpio_dir (m_cSDPinCtx, MRAA_GPIO_OUT);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
-    }
-
-    error = mraa_gpio_dir (m_rSTPinCtx, MRAA_GPIO_OUT);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
-    }
-
-    error = mraa_gpio_dir (m_rSPinCtx, MRAA_GPIO_OUT);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
-    }
-
-    m_spi = mraa_spi_init (0);
     if (mraa_get_platform_type() == MRAA_INTEL_EDISON_FAB_C) {
-        error = mraa_spi_frequency(m_spi, 25 * 1000000);
+        error = m_spi.frequency(25 * 1000000);
     } else {
-        error = mraa_spi_frequency(m_spi, 15 * 1000000);
+        error = m_spi.frequency(15 * 1000000);
     }
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
     lcdCSOn ();
@@ -134,13 +85,13 @@ ST7735::initModule () {
 void
 ST7735::write (uint8_t value) {
     rsLOW ();
-    mraa_spi_write (m_spi, value);
+    m_spi.writeByte(value);
 }
 
 void
 ST7735::data (uint8_t value) {
     rsHIGH ();
-    mraa_spi_write (m_spi, value);
+    m_spi.writeByte(value);
 }
 
 void
@@ -180,7 +131,7 @@ ST7735::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1) {
     m_spiBuffer[1] = x0 + colstart;             // XSTART
     m_spiBuffer[2] = 0x00;
     m_spiBuffer[3] = x1 + colstart;             // XEND
-    mraa_spi_write_buf(m_spi, m_spiBuffer, 4);
+    m_spi.write(m_spiBuffer, 4);
 
     write (ST7735_RASET);                       // Row addr set
 
@@ -189,14 +140,14 @@ ST7735::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1) {
     m_spiBuffer[1] = y0 + rowstart;             // YSTART
     m_spiBuffer[2] = 0x00;
     m_spiBuffer[3] = y1 + rowstart;             // YEND
-    mraa_spi_write_buf(m_spi, m_spiBuffer, 4);
+    m_spi.write(m_spiBuffer, 4);
 
     write (ST7735_RAMWR);                       // write to RAM
 }
 
 void
 ST7735::drawPixel(int16_t x, int16_t y, uint16_t color) {
-    if (MRAA_SUCCESS != setPixel (x, y, color)) {
+    if (mraa::SUCCESS != setPixel (x, y, color)) {
         return;
     }
 
@@ -215,13 +166,14 @@ ST7735::refresh () {
         fragmentDivisor = 20;
     }
 
-    mraa_result_t res;
+    mraa::Result res = mraa::SUCCESS;
     int fragmentSize = m_height * m_width * 2 / fragmentDivisor;
     for (int fragment = 0; fragment < fragmentDivisor; fragment++) {
         // uint8_t* x = mraa_spi_write_buf(m_spi, &m_map[fragment * fragmentSize], fragmentSize);
         // free(x);
-        res = mraa_spi_transfer_buf(m_spi, &m_map[fragment * fragmentSize], NULL, fragmentSize);
-        if (res != MRAA_SUCCESS) {
+        res = m_spi.transfer(&m_map[fragment * fragmentSize], NULL, fragmentSize);
+        // m_spi.write(&m_map[fragment * fragmentSize], fragmentSize);
+        if (res != mraa::SUCCESS) {
             fprintf (stderr, "%s: Failed mraa_spi_transfer_buf(), mraa_result_t=%d", __FUNCTION__, res);
             break;
         }
@@ -234,11 +186,11 @@ ST7735::configModule() {
     lcdCSOff ();
     lcdCSOn ();
 
-    mraa_gpio_write (m_rSTPinCtx, HIGH);
+    m_rSTPinCtx.write(HIGH);
     usleep (500000);
-    mraa_gpio_write (m_rSTPinCtx, LOW);
+    m_rSTPinCtx.write(LOW);
     usleep (500000);
-    mraa_gpio_write (m_rSTPinCtx, HIGH);
+    m_rSTPinCtx.write(HIGH);
     usleep (500000);
 
     executeCMDList (Rcmd1);
@@ -253,83 +205,83 @@ ST7735::configModule() {
     refresh ();
 }
 
-mraa_result_t
+mraa::Result
 ST7735::lcdCSOn () {
-    mraa_result_t error = MRAA_SUCCESS;
+    mraa::Result error = mraa::SUCCESS;
 
-    error = mraa_gpio_write (m_csLCDPinCtx, LOW);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    error = m_csLCDPinCtx.write(LOW);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
-    error = mraa_gpio_write (m_cSDPinCtx, HIGH);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    error = m_cSDPinCtx.write(HIGH);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
     return error;
 }
 
-mraa_result_t
+mraa::Result
 ST7735::lcdCSOff () {
-    mraa_result_t error = MRAA_SUCCESS;
+    mraa::Result error = mraa::SUCCESS;
 
-    error = mraa_gpio_write (m_csLCDPinCtx, HIGH);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    error = m_csLCDPinCtx.write(HIGH);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
     return error;
 }
 
-mraa_result_t
+mraa::Result
 ST7735::sdCSOn () {
-    mraa_result_t error = MRAA_SUCCESS;
+    mraa::Result error = mraa::SUCCESS;
 
-    error = mraa_gpio_write (m_cSDPinCtx, LOW);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    error = m_cSDPinCtx.write(LOW);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
-    error = mraa_gpio_write (m_csLCDPinCtx, HIGH);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    error = m_csLCDPinCtx.write(HIGH);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
     return error;
 }
 
-mraa_result_t
+mraa::Result
 ST7735::sdCSOff () {
-    mraa_result_t error = MRAA_SUCCESS;
+    mraa::Result error = mraa::SUCCESS;
 
-    error = mraa_gpio_write (m_cSDPinCtx, HIGH);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    error = m_cSDPinCtx.write(HIGH);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
     return error;
 }
 
-mraa_result_t
+mraa::Result
 ST7735::rsHIGH () {
-    mraa_result_t error = MRAA_SUCCESS;
+    mraa::Result error = mraa::SUCCESS;
 
-    error = mraa_gpio_write (m_rSPinCtx, HIGH);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    error = m_rSPinCtx.write(HIGH);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
     return error;
 }
 
-mraa_result_t
+mraa::Result
 ST7735::rsLOW () {
-    mraa_result_t error = MRAA_SUCCESS;
+    mraa::Result error = mraa::SUCCESS;
 
-    error = mraa_gpio_write (m_rSPinCtx, LOW);
-    if (error != MRAA_SUCCESS) {
-        mraa_result_print (error);
+    error = m_rSPinCtx.write(LOW);
+    if (error != mraa::SUCCESS) {
+        mraa::printError (error);
     }
 
     return error;

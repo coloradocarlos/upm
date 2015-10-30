@@ -23,6 +23,8 @@
  */
 
 #include <iostream>
+#include <string>
+#include <stdexcept>
 
 #include "ublox6.h"
 
@@ -35,7 +37,8 @@ Ublox6::Ublox6(int uart)
 
   if ( !(m_uart = mraa_uart_init(uart)) )
     {
-      cerr << __FUNCTION__ << ": mraa_uart_init() failed" << endl;
+      throw std::invalid_argument(std::string(__FUNCTION__) +
+                                  ": mraa_uart_init() failed");
       return;
     }
 
@@ -44,15 +47,19 @@ Ublox6::Ublox6(int uart)
 
   if (!devPath)
     {
-      cerr << __FUNCTION__ << ": mraa_uart_get_dev_path() failed" << endl;
+      throw std::runtime_error(std::string(__FUNCTION__) +
+                               ": mraa_uart_get_dev_path() failed");
       return;
     }
 
   // now open the tty
   if ( (m_ttyFd = open(devPath, O_RDWR)) == -1)
     {
-      cerr << __FUNCTION__ << ": open of " << devPath << " failed: " 
-           << strerror(errno) << endl;
+      string err = __FUNCTION__;
+      err += ": open of " + std::string(devPath) + " failed: " + 
+        std::string(strerror(errno));
+
+      throw std::runtime_error(err);
       return;
     }
 }
@@ -87,7 +94,7 @@ bool Ublox6::dataAvailable()
     return false;
 }
 
-int Ublox6::readData(char *buffer, size_t len)
+int Ublox6::readData(char *buffer, int len)
 {
   if (m_ttyFd == -1)
     return(-1);
@@ -95,12 +102,18 @@ int Ublox6::readData(char *buffer, size_t len)
   int rv = read(m_ttyFd, buffer, len);
 
   if (rv < 0)
-    cerr << __FUNCTION__ << ": read failed: " << strerror(errno) << endl;
+    {
+      string err = string(__FUNCTION__) + ": read failed: " + 
+        string(strerror(errno));
+
+      throw std::runtime_error(err);
+      return rv;
+    }
 
   return rv;
 }
 
-int Ublox6::writeData(char * buffer, size_t len)
+int Ublox6::writeData(char * buffer, int len)
 {
   if (m_ttyFd == -1)
     return(-1);
@@ -109,7 +122,10 @@ int Ublox6::writeData(char * buffer, size_t len)
 
   if (rv < 0)
     {
-      cerr << __FUNCTION__ << ": write failed: " << strerror(errno) << endl;
+      string err = string(__FUNCTION__) + ": write failed: " + 
+        string(strerror(errno));
+
+      throw std::runtime_error(err);
       return rv;
     }
 
@@ -140,7 +156,10 @@ bool Ublox6::setupTty(speed_t baud)
   int rv;
   if ( (rv = tcsetattr(m_ttyFd, TCSAFLUSH, &termio)) < 0)
     {
-      cerr << __FUNCTION__ << ": tcsetattr failed: " << strerror(errno) << endl;
+      string err = string(__FUNCTION__) + ": tcsetattr failed: " + 
+        string(strerror(errno));
+
+      throw std::runtime_error(err);
       return false;
     }
 

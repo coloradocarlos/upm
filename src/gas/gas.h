@@ -24,8 +24,7 @@
 #pragma once
 
 #include <string>
-#include <mraa/gpio.h>
-#include <mraa/aio.h>
+#include <mraa/aio.hpp>
 
 struct thresholdContext {
     long averageReading;
@@ -65,7 +64,7 @@ class Gas {
          * @param numberOfSamples Number of sample to sample for this window
          * @param buffer Buffer with sampled data
          */
-        virtual int getSampledWindow (unsigned int freqMS, unsigned int numberOfSamples, uint16_t * buffer);
+        virtual int getSampledWindow (unsigned int freqMS, int numberOfSamples, uint16_t * buffer);
 
         /**
          * Given the sampled buffer, this method returns TRUE/FALSE if the threshold
@@ -76,7 +75,7 @@ class Gas {
          * @param buffer Buffer with samples
          * @param len Buffer length
          */
-        virtual int findThreshold (thresholdContext* ctx, unsigned int threshold, uint16_t * buffer, unsigned int len);
+        virtual int findThreshold (thresholdContext* ctx, unsigned int threshold, uint16_t * buffer, int len);
 
         /**
          * Returns average data for the sampled window
@@ -87,8 +86,6 @@ class Gas {
 
         /**
          * Returns one sample from the sensor
-         *
-         * @param ctx Threshold context
          */
         virtual int getSample ();
 
@@ -101,7 +98,7 @@ class Gas {
         virtual void printGraph (thresholdContext* ctx, uint8_t resolution);
 
     protected:
-        mraa_aio_context    m_gasCtx;
+        mraa::Aio    m_aio;
 };
 
 }
